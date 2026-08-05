@@ -61,14 +61,22 @@ def upsert_user(username: str, password: str) -> None:
         conn.commit()
 
 
+# Compared against on every login attempt for a username that doesn't exist,
+# so a lookup miss costs about as much as a real bcrypt comparison. Without
+# this, unknown usernames return almost instantly while real ones take the
+# full bcrypt round-trip, letting an attacker enumerate valid usernames from
+# response timing alone.
+_DUMMY_HASH = bcrypt.hashpw(b"this-is-not-a-real-password-used-only-for-timing", bcrypt.gensalt())
+
+
 def verify_credentials(username: str, password: str) -> bool:
     with _connect() as conn:
         row = conn.execute(
             "SELECT password_hash FROM users WHERE username = ?", (username,)
         ).fetchone()
-    if row is None:
-        return False
-    return bcrypt.checkpw(password.encode("utf-8"), row[0].encode("utf-8"))
+    hash_to_check = row[0].encode("utf-8") if row is not None else _DUMMY_HASH
+    result = bcrypt.checkpw(password.encode("utf-8"), hash_to_check)
+    return result and row is not None
 
 
 init_db()

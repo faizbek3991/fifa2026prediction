@@ -189,7 +189,11 @@ func main() {
 		slog.Info("Login attempt", slog.String("username", loginReq.Username), slog.String("ip", ip))
 
 		hash, err := getPasswordHash(db, loginReq.Username)
-		valid := err == nil && checkPassword(hash, loginReq.Password)
+		userExists := err == nil
+		if !userExists {
+			hash = dummyHash // keep bcrypt cost constant so response time can't reveal whether the username exists
+		}
+		valid := checkPassword(hash, loginReq.Password) && userExists
 
 		if valid {
 			token, err := newSessionToken()

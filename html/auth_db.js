@@ -32,10 +32,18 @@ function upsertUser(username, password) {
   ).run(username, hash);
 }
 
+// Compared against on every login attempt for a username that doesn't exist,
+// so a lookup miss costs about as much as a real bcrypt comparison. Without
+// this, unknown usernames would return almost instantly while real ones take
+// the full bcrypt round-trip, letting an attacker enumerate valid usernames
+// from response timing alone.
+const DUMMY_HASH = bcrypt.hashSync('this-is-not-a-real-password-used-only-for-timing', 12);
+
 function verifyCredentials(username, password) {
   const row = db.prepare('SELECT password_hash FROM users WHERE username = ?').get(username);
-  if (!row) return false;
-  return bcrypt.compareSync(password, row.password_hash);
+  const hashToCheck = row ? row.password_hash : DUMMY_HASH;
+  const result = bcrypt.compareSync(password, hashToCheck);
+  return result && Boolean(row);
 }
 
 function createSession(username) {

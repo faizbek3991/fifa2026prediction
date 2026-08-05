@@ -42,6 +42,21 @@ func checkPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
+// dummyHash is compared against on every login attempt for a username that
+// doesn't exist, so a lookup miss takes about as long as a real bcrypt
+// comparison. Without this, unknown usernames return in ~1ms (DB miss) while
+// real ones take ~60-100ms (bcrypt), letting an attacker enumerate valid
+// usernames purely from response timing.
+var dummyHash = mustHash("this-is-not-a-real-password-used-only-for-timing")
+
+func mustHash(password string) string {
+	h, err := hashPassword(password)
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
+
 func newSessionToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
