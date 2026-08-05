@@ -257,7 +257,12 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	}))
 
+	// Render (and most PaaS hosts) assign a port via $PORT and require the
+	// app to bind to it; ADDR is kept as a fallback for local/VPS use.
 	addr := os.Getenv("ADDR")
+	if port := os.Getenv("PORT"); port != "" {
+		addr = ":" + port
+	}
 	if addr == "" {
 		addr = ":8080"
 	}
