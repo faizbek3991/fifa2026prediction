@@ -28,6 +28,3 @@ Thumbs.db
 
 # Local Claude Code tool-permission config (machine-specific, not project source)
 .claude/
-
-# Docs (kept locally, not tracked in git)
-README.md
