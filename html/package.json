@@ -1,0 +1,22 @@
+{
+  "name": "fifa2026-standalone",
+  "version": "1.0.0",
+  "description": "FIFA 2026 tournament predictor, gated behind a small Express + SQLite login server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed-user": "node seed_user.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2"
+  }
+}

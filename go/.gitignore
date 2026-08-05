@@ -1,0 +1,6 @@
+*.db
+*.db-journal
+fifa
+fifa.exe
+fifa_linux
+.env

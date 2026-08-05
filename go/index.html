@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIFA 2026 Go Predictor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <nav class="bg-gray-800 border-b border-gray-700 px-8 py-4 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-blue-400">⚽ FIFA 2026 Simulator</h2>
+        <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition">
+            🚪 Logout
+        </button>
+    </nav>
+
+    <div class="flex-1 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-2 text-blue-400">🏆 FIFA 2026 Monte Carlo Predictor</h1>
+        <p class="text-center text-gray-400 mb-8">Powered by Golang Concurrency (Goroutines)</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Controls -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">⚙️ Parameters</h2>
+                
+                <label class="block mb-2">Simulations: <span id="simCountLabel" class="text-blue-400">100,000</span></label>
+                <input type="range" id="simCount" min="10000" max="1000000" step="10000" value="100000" class="w-full mb-4">
+
+                <h3 class="font-semibold mb-2 text-gray-300">Elo Ratings</h3>
+                <div id="eloSliders" class="space-y-3"></div>
+
+                <button id="runBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded transition">
+                    🚀 Run Simulation
+                </button>
+                <p id="status" class="text-center text-sm text-gray-400 mt-3"></p>
+            </div>
+
+            <!-- Chart -->
+            <div class="md:col-span-2 bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Win Probability (%)</h2>
+                <canvas id="resultsChart"></canvas>
+                <div id="perfStats" class="mt-4 text-sm text-gray-400 text-center"></div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        // Logout function
+        async function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                try {
+                    const response = await fetch('/api/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    if (response.ok) {
+                        window.location.href = '/';
+                    }
+                } catch (error) {
+                    console.error('Logout failed:', error);
+                    alert('Logout failed. Please try again.');
+                }
+            }
+        }
+    </script>
+
+    <script>
+        const defaultElos = {
+            'France': 2143, 'Spain': 2177, 'Belgium': 1961,
+            'Norway': 1972, 'England': 2076, 'Argentina': 2156, 'Switzerland': 1943
+        };
+
+        const slidersContainer = document.getElementById('eloSliders');
+        const simCountSlider = document.getElementById('simCount');
+        const simCountLabel = document.getElementById('simCountLabel');
+        const runBtn = document.getElementById('runBtn');
+        const statusText = document.getElementById('status');
+        const perfStats = document.getElementById('perfStats');
+
+        // Generate Elo sliders
+        Object.entries(defaultElos).forEach(([team, elo]) => {
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <label class="text-sm">${team}: <span id="val-${team}" class="text-blue-400">${elo}</span></label>
+                <input type="range" id="elo-${team}" min="1500" max="2300" value="${elo}" class="w-full" data-team="${team}">
+            `;
+            slidersContainer.appendChild(div);
+        });
+
+        // Update labels on slider move
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                if (e.target.id === 'simCount') {
+                    simCountLabel.textContent = parseInt(e.target.value).toLocaleString();
+                } else {
+                    document.getElementById(`val-${e.target.dataset.team}`).textContent = e.target.value;
+                }
+            });
+        });
+
+        // Initialize Chart
+        const ctx = document.getElementById('resultsChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Win %', data: [], backgroundColor: '#3B82F6' }] },
+            options: { 
+                responsive: true, 
+                scales: { y: { beginAtZero: true, ticks: { color: '#9CA3AF' } }, x: { ticks: { color: '#9CA3AF' } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Run Simulation
+        runBtn.addEventListener('click', async () => {
+            runBtn.disabled = true;
+            statusText.textContent = "Calculating...";
+            
+            const elos = {};
+            document.querySelectorAll('[data-team]').forEach(s => {
+                elos[s.dataset.team] = parseInt(s.value);
+            });
+
+            try {
+                const res = await fetch('/api/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        num_sims: parseInt(simCountSlider.value),
+                        elos: elos
+                    })
+                });
+                const data = await res.json();
+                
+                // Sort results
+                data.results.sort((a, b) => b.probability - a.probability);
+                
+                chart.data.labels = data.results.map(r => r.team);
+                chart.data.datasets[0].data = data.results.map(r => r.probability);
+                chart.update();
+
+                statusText.textContent = "Complete!";
+                perfStats.innerHTML = `⚡ Executed in <span class="text-green-400 font-bold">${data.duration_ms} ms</span> using <span class="text-green-400 font-bold">${data.cpu_cores_used} CPU Cores</span>`;
+            } catch (err) {
+                statusText.textContent = "Error running simulation.";
+            } finally {
+                runBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
