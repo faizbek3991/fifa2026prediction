@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -133,6 +134,21 @@ func main() {
 		return
 	}
 
+	// Bootstrap a demo admin from env vars on every boot, so free-tier hosts
+	// without shell access (e.g. Render's free plan) don't need -seed-admin-username.
+	if adminUser, adminPass := os.Getenv("ADMIN_USERNAME"), os.Getenv("ADMIN_PASSWORD"); adminUser != "" && adminPass != "" {
+		hash, err := hashPassword(adminPass)
+		if err != nil {
+			slog.Error("Failed to hash bootstrap admin password", slog.Any("error", err))
+			os.Exit(1)
+		}
+		if err := upsertUser(db, adminUser, hash); err != nil {
+			slog.Error("Failed to bootstrap admin user", slog.Any("error", err))
+			os.Exit(1)
+		}
+		slog.Info("Bootstrap admin user ready", slog.String("username", adminUser))
+	}
+
 	limiter := newRateLimiter(5, time.Minute)
 
 	// Serve login page at root
@@ -214,6 +230,64 @@ func main() {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(response)
 		}
+	})
+
+	// Registration API endpoint
+	http.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			slog.Warn("Invalid request method on /api/register", slog.String("method", r.Method), slog.String("ip", clientIP(r)))
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ip := clientIP(r)
+		if !limiter.allow(ip) {
+			slog.Warn("Register rate limit exceeded", slog.String("ip", ip))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(LoginResponse{Success: false, Message: "Too many attempts. Try again later."})
+			return
+		}
+
+		var regReq LoginRequest
+		if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if len(regReq.Username) < 3 || len(regReq.Username) > 32 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(LoginResponse{Success: false, Message: "Username must be 3-32 characters"})
+			return
+		}
+		if len(regReq.Password) < 8 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(LoginResponse{Success: false, Message: "Password must be at least 8 characters"})
+			return
+		}
+
+		hash, err := hashPassword(regReq.Password)
+		if err != nil {
+			slog.Error("Failed to hash registration password", slog.Any("error", err))
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if err := createUser(db, regReq.Username, hash); err != nil {
+			if errors.Is(err, ErrUserExists) {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(LoginResponse{Success: false, Message: "Username already taken"})
+				return
+			}
+			slog.Error("Failed to create user", slog.Any("error", err))
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		slog.Info("User registered", slog.String("username", regReq.Username), slog.String("ip", ip))
+		json.NewEncoder(w).Encode(LoginResponse{Success: true, Message: "Account created. You can now log in."})
 	})
 
 	// API endpoint for the simulation

@@ -53,6 +53,17 @@ def logout():
     st.session_state.logged_in = False
     st.session_state.username = None
 
+def register_user(username, password):
+    """Validate and create a new account. Returns (success, message)."""
+    if len(username) < 3 or len(username) > 32:
+        return False, "Username must be 3-32 characters"
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters"
+    if not auth_db.create_user(username, password):
+        return False, "Username already taken"
+    logger.info(f"User registered - Username: {username}")
+    return True, "Account created. You can now log in."
+
 def login_page():
     """Display login page"""
     _, col_center, _ = st.columns([1, 2, 1])
@@ -62,23 +73,37 @@ def login_page():
         st.markdown("<p style='text-align: center; color: #666;'>Tournament Prediction Engine</p>", unsafe_allow_html=True)
         st.markdown("---")
 
-        username = st.text_input("Username", placeholder="Enter your username")
-        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        login_tab, register_tab = st.tabs(["Login", "Register"])
 
-        if st.button("Login", use_container_width=True, type="primary"):
-            if is_rate_limited():
-                st.error("Too many failed attempts. Please wait a minute and try again.")
-            elif validate_credentials(username, password):
-                st.session_state.logged_in = True
-                st.session_state.username = username
-                st.session_state.login_attempts = []
-                logger.info(f"User logged in successfully - Username: {username}")
-                st.success("Login successful! Redirecting...")
-                st.rerun()
-            else:
-                st.session_state.login_attempts.append(time.time())
-                logger.warning(f"Failed login attempt - Username: {username}")
-                st.error("Invalid username or password")
+        with login_tab:
+            username = st.text_input("Username", placeholder="Enter your username", key="login_username")
+            password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_password")
+
+            if st.button("Login", use_container_width=True, type="primary"):
+                if is_rate_limited():
+                    st.error("Too many failed attempts. Please wait a minute and try again.")
+                elif validate_credentials(username, password):
+                    st.session_state.logged_in = True
+                    st.session_state.username = username
+                    st.session_state.login_attempts = []
+                    logger.info(f"User logged in successfully - Username: {username}")
+                    st.success("Login successful! Redirecting...")
+                    st.rerun()
+                else:
+                    st.session_state.login_attempts.append(time.time())
+                    logger.warning(f"Failed login attempt - Username: {username}")
+                    st.error("Invalid username or password")
+
+        with register_tab:
+            reg_username = st.text_input("Choose a username", placeholder="3-32 characters", key="reg_username")
+            reg_password = st.text_input("Choose a password", type="password", placeholder="8+ characters", key="reg_password")
+
+            if st.button("Create account", use_container_width=True):
+                success, message = register_user(reg_username, reg_password)
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
 
 # Initialize session state
 init_session_state()

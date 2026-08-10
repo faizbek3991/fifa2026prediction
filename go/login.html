@@ -110,6 +110,24 @@
         .loading {
             display: none;
         }
+
+        .toggle-link {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .toggle-link a {
+            color: #667eea;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -138,17 +156,56 @@
             <div class="error-message" id="errorMsg"></div>
             <div class="success-message" id="successMsg"></div>
         </form>
+
+        <form id="registerForm" class="hidden">
+            <div class="form-group">
+                <label for="regUsername">Username</label>
+                <input type="text" id="regUsername" name="regUsername" required placeholder="Choose a username" minlength="3" maxlength="32">
+            </div>
+
+            <div class="form-group">
+                <label for="regPassword">Password</label>
+                <input type="password" id="regPassword" name="regPassword" required placeholder="Choose a password (8+ chars)" minlength="8">
+            </div>
+
+            <button type="submit">
+                <span class="register-text">Create account</span>
+                <span class="loading">Creating account...</span>
+            </button>
+
+            <div class="error-message" id="regErrorMsg"></div>
+            <div class="success-message" id="regSuccessMsg"></div>
+        </form>
+
+        <div class="toggle-link">
+            <span id="toLoginPrompt" class="hidden">Already have an account? <a id="toLogin">Log in</a></span>
+            <span id="toRegisterPrompt">Don't have an account? <a id="toRegister">Register</a></span>
+        </div>
     </div>
 
     <script>
-        const form = document.getElementById('loginForm');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
         const errorMsg = document.getElementById('errorMsg');
         const successMsg = document.getElementById('successMsg');
         const loginText = document.querySelector('.login-text');
-        const loadingText = document.querySelector('.loading');
-        const submitBtn = form.querySelector('button');
+        const loadingText = loginForm.querySelector('.loading');
+        const loginSubmitBtn = loginForm.querySelector('button');
 
-        form.addEventListener('submit', async (e) => {
+        document.getElementById('toRegister').addEventListener('click', () => {
+            loginForm.classList.add('hidden');
+            registerForm.classList.remove('hidden');
+            document.getElementById('toRegisterPrompt').classList.add('hidden');
+            document.getElementById('toLoginPrompt').classList.remove('hidden');
+        });
+        document.getElementById('toLogin').addEventListener('click', () => {
+            registerForm.classList.add('hidden');
+            loginForm.classList.remove('hidden');
+            document.getElementById('toLoginPrompt').classList.add('hidden');
+            document.getElementById('toRegisterPrompt').classList.remove('hidden');
+        });
+
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const username = document.getElementById('username').value;
@@ -157,7 +214,7 @@
             errorMsg.style.display = 'none';
             successMsg.style.display = 'none';
 
-            submitBtn.disabled = true;
+            loginSubmitBtn.disabled = true;
             loginText.style.display = 'none';
             loadingText.style.display = 'inline';
 
@@ -181,16 +238,65 @@
                 } else {
                     errorMsg.textContent = data.message;
                     errorMsg.style.display = 'block';
-                    submitBtn.disabled = false;
+                    loginSubmitBtn.disabled = false;
                     loginText.style.display = 'inline';
                     loadingText.style.display = 'none';
                 }
             } catch (error) {
                 errorMsg.textContent = 'Login failed. Please try again.';
                 errorMsg.style.display = 'block';
-                submitBtn.disabled = false;
+                loginSubmitBtn.disabled = false;
                 loginText.style.display = 'inline';
                 loadingText.style.display = 'none';
+            }
+        });
+
+        const regErrorMsg = document.getElementById('regErrorMsg');
+        const regSuccessMsg = document.getElementById('regSuccessMsg');
+        const registerText = document.querySelector('.register-text');
+        const regLoadingText = registerForm.querySelector('.loading');
+        const registerSubmitBtn = registerForm.querySelector('button');
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+
+            regErrorMsg.style.display = 'none';
+            regSuccessMsg.style.display = 'none';
+
+            registerSubmitBtn.disabled = true;
+            registerText.style.display = 'none';
+            regLoadingText.style.display = 'inline';
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    regSuccessMsg.textContent = data.message;
+                    regSuccessMsg.style.display = 'block';
+                    setTimeout(() => {
+                        document.getElementById('toLogin').click();
+                        document.getElementById('username').value = username;
+                    }, 1200);
+                } else {
+                    regErrorMsg.textContent = data.message;
+                    regErrorMsg.style.display = 'block';
+                }
+            } catch (error) {
+                regErrorMsg.textContent = 'Registration failed. Please try again.';
+                regErrorMsg.style.display = 'block';
+            } finally {
+                registerSubmitBtn.disabled = false;
+                registerText.style.display = 'inline';
+                regLoadingText.style.display = 'none';
             }
         });
     </script>

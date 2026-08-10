@@ -79,4 +79,14 @@ def verify_credentials(username: str, password: str) -> bool:
     return result and row is not None
 
 
+def bootstrap_admin_from_env() -> None:
+    """Create/update a demo admin from env vars on every boot, so free-tier
+    hosts without shell access (e.g. Render's free plan) don't need seed_user.py."""
+    admin_user = os.environ.get("ADMIN_USERNAME")
+    admin_pass = os.environ.get("ADMIN_PASSWORD")
+    if admin_user and admin_pass:
+        upsert_user(admin_user, admin_pass)
+
+
 init_db()
+bootstrap_admin_from_env()

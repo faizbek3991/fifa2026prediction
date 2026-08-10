@@ -32,6 +32,20 @@ function upsertUser(username, password) {
   ).run(username, hash);
 }
 
+// Returns false if the username already exists, true if the account was created.
+function createUser(username, password) {
+  const hash = bcrypt.hashSync(password, 12);
+  try {
+    db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, hash);
+    return true;
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT') {
+      return false;
+    }
+    throw err;
+  }
+}
+
 // Compared against on every login attempt for a username that doesn't exist,
 // so a lookup miss costs about as much as a real bcrypt comparison. Without
 // this, unknown usernames would return almost instantly while real ones take
@@ -74,6 +88,7 @@ function deleteSession(token) {
 module.exports = {
   SESSION_TTL_MS,
   upsertUser,
+  createUser,
   verifyCredentials,
   createSession,
   getSessionUsername,

@@ -52,6 +52,14 @@ func createUser(db *sql.DB, username, passwordHash string) error {
 	return nil
 }
 
+func upsertUser(db *sql.DB, username, passwordHash string) error {
+	_, err := db.Exec(`
+		INSERT INTO users (username, password_hash) VALUES (?, ?)
+		ON CONFLICT(username) DO UPDATE SET password_hash = excluded.password_hash`,
+		username, passwordHash)
+	return err
+}
+
 func getPasswordHash(db *sql.DB, username string) (string, error) {
 	var hash string
 	err := db.QueryRow(`SELECT password_hash FROM users WHERE username = ?`, username).Scan(&hash)
